@@ -1,10 +1,43 @@
+
+## uv pip install -e. (installing packages from a cloned project from github)
 import hashlib
 from typing import Optional
 import time
+import logging
+from redisvl.extensions.llmcache import SemanticCache
+from redisvl.utils.vectorize import HFTextVectorizer
+logger = logging.getLogger(__name__)
 
-
-## in production redis for data presistence
-
+## in production redis for data presistence use redis
+class RedisSemanticCache:
+    def __init__(self, redis_url:str, redis_ttl_seconds:int = 300):
+        self.encoder = HFTextVectorizer(model_name="all-MiniLM-L6-v2")
+        self.cache =  SemanticCache(
+            name = "agent_cache",
+            redis_url =redis_url, 
+            distance_threshold = 0.1,
+            vectorizer = self.encoder)
+        self.cache.set_ttl(redis_ttl_seconds)
+    def get(self, query:str)->Optional[str]:
+        """Check if a semantic cache exists for the query and return it if it does."""
+        try:
+            #check() automatically embed the quey and run a vector search in redis
+            hits = self.cache.check(prompt=query)
+            if hits:
+                logger.info(f"Cache hit for query: {query}")
+                return hits[0]["response"]
+            else:
+                logger.info(f"Cache miss for query: {query}")
+                return None
+        except Exception as e:
+            logger.error(f"Error checking cache: {e}")
+            return None
+    def set(self, query:str, response:str):
+        try:
+            self.cache.store(prompt=query, response=response)
+        except Exception as e:
+            logger.error(f"Error storing cache: {e}")
+#------------------------------------------
 class CacheResponse:
     """In-Memory response cache with TTL (time to live)"""
     def __init__(self, ttl_seconds:int = 300):

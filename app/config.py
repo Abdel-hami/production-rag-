@@ -9,13 +9,13 @@ from functools import lru_cache # Cache the settings instance to avoid reloading
 class Settings(BaseSettings):
     #llm settings
     groq_api_key: str 
-    primary_model: str = "gpt-4o"
-    secondary_model: str = "gpt-3.5-turbo"
+    primary_model: str = "Llama-3.3-70B-Versatile"
+    secondary_model: str = "Llama-3.3-70B-Versatile"
 
     ## langsmith settings
-    langsmith_project_name: str = "production-api"
-    langsmith_tracing: bool = True
-    langsmith_api_key: str 
+    langchain_project_name: str = "production-api"
+    langchain_tracing: bool = True
+    langchain_api_key: str 
 
     # Application settings
     app_env: str = "development"
