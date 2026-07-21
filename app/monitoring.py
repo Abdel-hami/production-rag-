@@ -5,7 +5,7 @@ Structured logging, metrics, and alerts
 
 import logging
 import json
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 class JSONFormatter(logging.Formatter):
     """Format logs as JSON for log aggregation."""
@@ -41,7 +41,7 @@ class MetricsCollector:
     """Collect and aggregate metrics.
     in production replace it Promethus Client
     """
-      def __init__(self):
+    def __init__(self):
         self.metrics = {
             "requests_total": 0,
             "errors_total": 0,
@@ -102,3 +102,13 @@ class MetricsCollector:
             "total_output_tokens": self.metrics["tokens_output"],
             "cache_hit_rate": f"{cache_hit_rate:.2%}",
         }
+
+
+
+class RequesTimer:
+    """context manager for timing requests"""
+    def __enter__(self):
+        self.start = time.time()
+        return self
+    def __exit__(self, *args):
+        self.elapsed_ms = (time.time() - self.start) * 1000  # convert to milliseconds

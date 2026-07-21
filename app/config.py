@@ -13,9 +13,9 @@ class Settings(BaseSettings):
     secondary_model: str = "Llama-3.3-70B-Versatile"
 
     ## langsmith settings
-    langchain_project_name: str = "production-api"
-    langchain_tracing: bool = True
-    langchain_api_key: str 
+    langsmith_project: str = "production-api"
+    langsmith_tracing: bool = True
+    langsmith_api_key: str 
 
     # Application settings
     app_env: str = "development"

@@ -18,19 +18,19 @@ class AgentState(TypedDict):
     retry_count: int
     model_used: str
 
+settings = get_settings()
 class ProductionAgent:
     """
     """
     def __init__(self):
-        settings = get_settings()
         self.primary_llm =ChatGroq(
-            model=self.settings.primary_model,
+            model=settings.primary_model,
             temperature=0.0,
             api_key= settings.groq_api_key,
             max_retries=0
         )
         self.fallback_llm = ChatGroq(
-            model=self.settings.primary_model,
+            model=settings.primary_model,
             temperature=0.0,
             api_key= settings.groq_api_key,
             max_retries=0
@@ -103,8 +103,8 @@ class ProductionAgent:
         graph = StateGraph(AgentState)
         ## or just graph = 
         graph.add_node("process", process_message)
-        graph.add_node("fallback", process_message)
-        graph.add_node("process", process_message)
+        graph.add_node("fallback", try_fallback)
+        graph.add_node("error", error_handler)
 
         graph.add_edge(START,"process")
         graph.add_conditional_edges(
@@ -115,7 +115,7 @@ class ProductionAgent:
             "error":"error"}
         )
         graph.add_conditional_edges(
-            "falllback",
+            "fallback",
             route_fallback,
             {"done":END,
             "error":"error"}
