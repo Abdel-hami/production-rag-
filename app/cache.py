@@ -1,8 +1,8 @@
 
 ## uv pip install -e. (installing packages from a cloned project from github)
-import hashlib
+
 from typing import Optional
-import time
+
 import logging
 from redisvl.extensions.llmcache import SemanticCache
 from redisvl.utils.vectorize import HFTextVectorizer
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 ## in production redis for data presistence use redis
 class RedisSemanticCache:
-    def __init__(self, redis_url:str, redis_ttl_seconds:int = 300):
+    def __init__(self, redis_url:str="redis://localhost:6379", redis_ttl_seconds:int = 300):
         self.encoder = HFTextVectorizer(model="all-MiniLM-L6-v2")
         self.cache =  SemanticCache(
             name = "agent_cache",

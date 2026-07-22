@@ -3,7 +3,7 @@ name = "prod-rag"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11,<3.14" 
 dependencies = [
     "chromadb>=1.5.9",
     "fastapi>=0.136.3",
@@ -13,8 +13,8 @@ dependencies = [
     "langsmith>=0.8.14",
     "pydantic-settings>=2.14.1",
     "python-dotenv>=1.2.2",
-    "redis>=8.0.0",
-    "redisvl>=0.3.9",
+    "redis>=5.0,<8.0",
+    "redisvl>=0.23.0", 
     "sentence-transformers>=5.6.0",
     "slowapi>=0.1.9",
     "transformers>=5.12.1",

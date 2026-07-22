@@ -2,11 +2,19 @@
 Monitoring and Logging for Production
 Structured logging, metrics, and alerts
 """
-
+import time
 import logging
 import json
-from datetime import datetime, time, timezone
-
+from datetime import datetime, timezone
+from langchain_groq import ChatGroq
+from app.config import get_settings
+settings = get_settings()
+llm_groq =ChatGroq(
+            model=settings.primary_model,
+            temperature=0.0,
+            api_key= settings.groq_api_key,
+            max_retries=0
+        )
 class JSONFormatter(logging.Formatter):
     """Format logs as JSON for log aggregation."""
 
@@ -112,3 +120,83 @@ class RequesTimer:
         return self
     def __exit__(self, *args):
         self.elapsed_ms = (time.time() - self.start) * 1000  # convert to milliseconds
+
+class InstrumentedLLM:
+    """LLM with full instrumentation."""
+
+    def __init__(self):
+        self.llm = llm_groq
+        self.metrics = MetricsCollector()
+        self.logger = setup_logging()
+
+    def invoke(self, query: str) -> str:
+        start_time = time.time()
+        error = False
+
+        try:
+            response = self.llm.invoke(query)
+            result = response.content
+
+            # Estimate tokens
+            input_tokens = len(query.split()) * 4 // 3
+            output_tokens = len(result.split()) * 4 // 3
+
+            self.metrics.record_request(
+                latency_ms=(time.time() - start_time) * 1000,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                error=False,
+                cache_hit=False,
+            )
+
+            self.logger.info(
+                "LLM request completed",
+                extra={
+                    "extra_data": {
+                        "latency_ms": (time.time() - start_time) * 1000,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                    }
+                },
+            )
+
+            return result
+
+        except Exception as e:
+            error = True
+            self.metrics.record_request(
+                latency_ms=(time.time() - start_time) * 1000,
+                input_tokens=0,
+                output_tokens=0,
+                error=True,
+                cache_hit=False,
+            )
+
+            self.logger.error(
+                f"LLM request failed: {e}", extra={"extra_data": {"error": str(e)}}
+            )
+
+            raise
+
+
+def demo_monitoring():
+    """Demonstrate monitoring."""
+
+    llm = InstrumentedLLM()
+
+    print("Monitoring Demo:\n")
+
+    queries = [
+        "What is Python?",
+        "Explain machine learning.",
+        "What is 2 + 2?",
+    ]
+
+    for query in queries:
+        result = llm.invoke(query)
+        print(f"Query: {query[:30]}... -> {result[:30]}...")
+
+    print("\nMetrics Summary:")
+    summary = llm.metrics.get_summary()
+    for key, value in summary.items():
+        print(f"  {key}: {value}")

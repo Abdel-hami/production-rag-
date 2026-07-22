@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 from langsmith import traceable
 from app.config import get_settings
 from guardrails import Guard, OnFailAction, AsyncGuard
-from guardrails.hub import DetectPII, PromptInjectionDetector, ToxicLanguage
+from guardrails.hub import  PromptInjectionDetector, ToxicLanguage
 Settings = get_settings()
 logger = logging.getLogger(__name__)
 ## ProvenanceLLM for hallucination detection
@@ -209,7 +209,7 @@ _injection_detector = FastInjectionPatterns()
 
 ##--------------------------
 # main validation functions
-async def validate_input(user_input: str) -> bool:
+async def validate_input(user_input: str) :
     """
     Validate user input for security threats.
     
@@ -259,7 +259,7 @@ async def validate_input(user_input: str) -> bool:
     return ValidationResult(
         status=ValidationStatus.PASSED,
         data=cleaned_input,
-        warnings=warnings,
+        warnings=warnings
     )
 
 ## ----------------
