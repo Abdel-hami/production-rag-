@@ -88,36 +88,41 @@ async def chat(request: Request, body:chatRequest):
         ## step 1: security check
 
         result = await validate_input(body.message)
-        result = result.to_dict()
-        security_notes.extend(result["warnings"])
-        cleaned_input = result["data"]
-
-        if result["status"] == "failed":
+        # print(f"security check result: {result}")  
+        security_notes.extend(result.warnings)
+        cleaned_input = result.data
+        # logger.info(f"cleaned input type: {type(cleaned_input)} cleaned_input: {cleaned_input}")
+        # print(f"data: {result.data} warnings: {result.warnings} errors: {result.errors}")  
+        if result.status == "failed":
             logger.warning(f"Security check failed for thread_id: {body.thread_id}. Warnings: {result['warnings']}")
-            metrics.record_request(latency_ms=0,error=True)
+            metrics.record_request(latency_ms=0,input_tokens=0,output_tokens=0,error=True)
             raise HTTPException(status_code=400, detail="your message blocked by our security checks")
         ## step 2: cache lookup
 
         cached_response = cache.get(cleaned_input)
         
         if cached_response:
-            metrics.record_request(latency_ms=0,cache_hit=True)
+            metrics.record_request(latency_ms=0,input_tokens=0,output_tokens=0,cache_hit=True)
             logger.info(f"Cache hit for thread_id: {body.thread_id}")
             return chatResponse(response=cached_response, thread_id=body.thread_id,model_used="cached", cached=True, processing_time_ms=0)
         
         ## step 3: langraph agent invoke
         try:
             logger.info(f"LangGraph agent invoke for thread_id: {body.thread_id}")
-            result = await agents.invoke_agent(cleaned_input)
-        except Exception as e:
+            result = agents.invoke(cleaned_input) ## invoking LangGraph agent: object dict can't be used in 'await' expression
+            # print(f"LangGraph agent result: {result}")
+        except Exception as e: 
             logger.error(f"Error invoking LangGraph agent: {e}")
-            metrics.record_request(latency_ms=0, error=True)
+            metrics.record_request(latency_ms=0,input_tokens=0,output_tokens=0, error=True)
             raise HTTPException(status_code=500, detail="Error processing your request. Please try again later.")
+
         response_text = result["response"]
         model_used = result["model_used"]
 
         ## step 4: output validation
         output_validation = await validate_output(response_text)
+        # print(f"output validation: {output_validation}")
+        # print(f"output validation: {output_validation.data}")
         security_notes.extend(output_validation.warnings)
         ## step 5: cache set
         cache.set(cleaned_input, output_validation.data)
@@ -135,7 +140,7 @@ async def health_check():
     """Health check endpoint to verify the service is running."""
     settings = get_settings()
     checks = {
-        "cache": cache is not None,
+        "cache":cache is not None,
         "agent":agents is not None,
         "metrics":metrics is not None
     }

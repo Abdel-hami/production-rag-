@@ -56,86 +56,93 @@ class ValidationResult:
             "is_valid": self.status in [ValidationStatus.PASSED, ValidationStatus.CLEANED]
         }
 
-class SecurityGuard:
-    def __init__(self):
-        self.input_guard = self._setup_input_guard()
-        self.output_guard = self._setup_output_guard()
+# class SecurityGuard:
+#     def __init__(self):
+#         self.input_guard = self._setup_input_guard()
+#         self.output_guard = self._setup_output_guard()
     
-    def _setup_input_guard(self):
-        """
-        Setup input guard with validators for:
-        - Prompt injection detection
-        - Toxic language
-        - Prohibited terms/patterns
-        """
-        try:
-            guard = AsyncGuard().use(
-                PromptInjectionDetector(on_fail="filter",  # Filter malicious content
-                use_local=False,   # Use cloud-based detection if available
-                model="Llama-3.3-70B-Versatile"
+#     async def _setup_input_guard(self):
+#         """
+#         Setup input guard with validators for:
+#         - Prompt injection detection
+#         - Toxic language
+#         - Prohibited terms/patterns
+#         """
+#         try:
+#             # guard = AsyncGuard().use(
+#             #     PromptInjectionDetector(on_fail="filter",  # Filter malicious content
+#             #     use_local=False,   # Use cloud-based detection if available
+#             #     model="Llama-3.3-70B-Versatile"
 
-            ))
-            # guard = AsyncGuard().use(
-            #     ToxicLanguage(
-            #     threshold=0.5,
-            #     validation_method="sentence",
-            #     on_fail=OnFailAction.EXCEPTION #reject toxic input,
+#             # ))
+#             guard = AsyncGuard().use(
+#                 ToxicLanguage(
+#                 threshold=0.5,
+#                 validation_method="sentence",
+#                 on_fail=OnFailAction.EXCEPTION #reject toxic input,
                 
-            #     ))
-            ## add toxic language check
-
-            # guard = Guard.use(
-            #     ToxicLanguage,
-            #     threshold=0.5,
-            #     validation_method="sentence",
-            #     on_fail="exception" #reject toxic input,
-            #     )
-            return guard
-        except Exception as e:
-            logger.error(f"Error setting up input guard: {e}")
-            # Fallback to regex-only guard if Guardrails setup fails
-            return self._fallback_input_guard()
-
-    def _setup_output_guard(self):
-        """
-        Setup output guard with validators for:
-        - Toxic language
-        - Prohibited terms
-        - PII patterns
-        """
-        try:
-            guard = AsyncGuard().use(
-                ToxicLanguage(
-                threshold=0.5,
-                validation_method="sentence",
-                on_fail=OnFailAction.EXCEPTION #reject toxic input,
+#                 ))
+#             # guard = AsyncGuard().use(
+#             #     ToxicLanguage(
+#             #     threshold=0.5,
+#             #     validation_method="sentence",
+#             #     on_fail=OnFailAction.EXCEPTION #reject toxic input,
                 
-                ))
+#             #     ))
+#             ## add toxic language check
 
-            # guard = Guard.use(
-            #     DetectPII,
-            #     pii_entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN"],
-            #     on_fail="filter"
-            # )
+#             # guard = Guard.use(
+#             #     ToxicLanguage,
+#             #     threshold=0.5,
+#             #     validation_method="sentence",
+#             #     on_fail="exception" #reject toxic input,
+#             #     )
+#             return guard
+#         except Exception as e:
+#             logger.error(f"Error setting up input guard: {e}")
+#             # Fallback to regex-only guard if Guardrails setup fails
+#             return self._fallback_input_guard()
 
-            return guard
-        except Exception as e:
-            logger.error(f"Error setting up output guard: {e}")
-            # Fallback to regex-only guard if Guardrails setup fails
-            return self._fallback_output_guard()
+#     async def _setup_output_guard(self):
+#         """
+#         Setup output guard with validators for:
+#         - Toxic language
+#         - Prohibited terms
+#         - PII patterns
+#         """
+#         try:
+#             guard = AsyncGuard().use(
+#                 ToxicLanguage(
+#                 threshold=0.5,
+#                 validation_method="sentence",
+#                 on_fail=OnFailAction.EXCEPTION #reject toxic input,
+                
+#                 ))
 
-    @staticmethod
-    def _fallback_input_guard() -> Guard:
-        """Fallback input guard using basic validators."""
-        return Guard()
+#             # guard = Guard.use(
+#             #     DetectPII,
+#             #     pii_entities=["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN"],
+#             #     on_fail="filter"
+#             # )
 
-    @staticmethod
-    def _fallback_output_guard() -> Guard:
-        """Fallback output guard using basic validators."""
-        return Guard()
+#             return guard
+#         except Exception as e:
+#             logger.error(f"Error setting up output guard: {e}")
+#             # Fallback to regex-only guard if Guardrails setup fails
+#             return self._fallback_output_guard()
+
+#     @staticmethod
+#     def _fallback_input_guard() -> Guard:
+#         """Fallback input guard using basic validators."""
+#         return Guard()
+
+#     @staticmethod
+#     def _fallback_output_guard() -> Guard:
+#         """Fallback output guard using basic validators."""
+#         return Guard()
 
 # initialize the security guard
-_security_guards = SecurityGuard()
+# _security_guards = SecurityGuard()
 
 
 #----------------------------
@@ -227,26 +234,30 @@ async def validate_input(user_input: str) :
     injection_warning = _injection_detector.detect(cleaned_input)
     if injection_warning:
         warnings.append(injection_warning)
+        logger.warning(f"Input flagged for potential injection: {injection_warning}")
+        cleaned_input = _injection_detector.mask(cleaned_input)
         # Note: We warn but don't block - Guardrails will do deeper analysis
 
     # Layer 2: Check for PII in user input (users shouldn't send sensitive data)
     pii_found = _pii_detector.detect(cleaned_input)
     if pii_found:
         warnings.append(f"PII detected in input: {list(pii_found.keys())}")
+        logger.warning(f"PII detected in input: {list(pii_found.keys())}")
+        cleaned_input = _pii_detector.mask(cleaned_input)
         # Note: We warn but let Guardrails decide what to do
 
     # Layer 3: Run Guardrails AI guards
-    try:
-        validated_output = await _security_guards.input_guard.validate(cleaned_input)
-        cleaned_input = validated_output if validated_output else cleaned_input
-    except Exception as e:
-        errors.append(f"Guardrails validation failed: {str(e)}")
-        logger.warning(f"Input validation error: {e}")
-        return ValidationResult(
-            status=ValidationStatus.FAILED,
-            errors=errors,
-            warnings=warnings,
-        )
+    # try:
+    #     validated_output = _security_guards.input_guard.validate(cleaned_input)
+    #     cleaned_input = validated_output if validated_output else cleaned_input
+    # except Exception as e:
+    #     errors.append(f"Guardrails validation failed: {str(e)}")
+    #     logger.warning(f"Input validation error: {e}")
+    #     return ValidationResult(
+    #         status=ValidationStatus.FAILED,
+    #         errors=errors,
+    #         warnings=warnings,
+    #     )
 
     # Return result
     if errors:
@@ -263,7 +274,7 @@ async def validate_input(user_input: str) :
     )
 
 ## ----------------
-def validate_output(llm_output: str) -> ValidationResult:
+async def validate_output(llm_output: str) -> ValidationResult:
     """
     Validate LLM output before returning to user.
     
@@ -299,6 +310,7 @@ def validate_output(llm_output: str) -> ValidationResult:
         if re.search(pattern, cleaned_output, re.IGNORECASE):
             errors.append(f"Blocked: {reason}")
 
+    
     if errors:
         return ValidationResult(
             status=ValidationStatus.FAILED,
@@ -306,22 +318,22 @@ def validate_output(llm_output: str) -> ValidationResult:
         )
 
     # Layer 3: Run Guardrails AI output guards
-    try:
-        validated_output = _security_guards.output_guard.validate(cleaned_output)
-        cleaned_output = validated_output if validated_output else cleaned_output
-    except Exception as e:
-        # Check if it's a toxicity/prohibited terms issue
-        if "toxic" in str(e).lower() or "prohibited" in str(e).lower():
-            errors.append("Output blocked: Contains harmful or prohibited content")
-            logger.warning(f"Output blocked by Guardrails: {e}")
-            return ValidationResult(
-                status=ValidationStatus.FAILED,
-                errors=errors,
-            )
-        else:
-            # Other validation errors - log but allow (fail gracefully)
-            warnings.append(f"Guardrails validation warning: {str(e)}")
-            logger.warning(f"Output validation warning: {e}")
+    # try:
+    #     validated_output = await _security_guards.output_guard.validate(cleaned_output)
+    #     cleaned_output = validated_output if validated_output else cleaned_output
+    # except Exception as e:
+    #     # Check if it's a toxicity/prohibited terms issue
+    #     if "toxic" in str(e).lower() or "prohibited" in str(e).lower():
+    #         errors.append("Output blocked: Contains harmful or prohibited content")
+    #         logger.warning(f"Output blocked by Guardrails: {e}")
+    #         return ValidationResult(
+    #             status=ValidationStatus.FAILED,
+    #             errors=errors,
+    #         )
+    #     else:
+    #         # Other validation errors - log but allow (fail gracefully)
+    #         warnings.append(f"Guardrails validation warning: {str(e)}")
+    #         logger.warning(f"Output validation warning: {e}")
 
     return ValidationResult(
         status=ValidationStatus.PASSED,
